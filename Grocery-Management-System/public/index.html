@@ -1,0 +1,207 @@
+<!-- 
+index.html – Supplier Portal Interface
+
+This HTML page serves as the client interface for suppliers.
+It provides:
+- A login and registration tab interface
+- Supplier registration with dynamic product checklist
+- Viewing and approving pending orders
+
+The page connects to backend APIs (Node.js + Express) to interact with the system.
+
+Language: Hebrew (RTL layout)
+-->
+
+<!DOCTYPE html>
+<html lang="he">
+<head>
+  <meta charset="UTF-8" />
+  <title>כניסת ספקים</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+  <div class="login-container">
+    <h1>מערכת הספקים</h1>
+
+    <!-- Tab switcher between login and registration -->
+    <div class="tab-buttons">
+      <button id="tabLogin" onclick="showTab('login')">התחברות</button>
+      <button id="tabRegister" onclick="showTab('register')">רישום</button>
+    </div>
+
+    <!-- Login Form -->
+    <div id="loginTab" class="tab">
+      <input type="text" id="loginPhone" placeholder="מספר טלפון" />
+      <input type="password" id="loginPassword" placeholder="סיסמה" />
+      <button onclick="login()">התחבר</button>
+    </div>
+
+    <!-- Registration Form -->
+    <div id="registerTab" class="tab" style="display:none;">
+      <input type="text" id="companyName" placeholder="שם חברה" />
+      <input type="text" id="representative" placeholder="שם נציג" />
+      <input type="text" id="registerPhone" placeholder="מספר טלפון" />
+      <input type="password" id="registerPassword" placeholder="סיסמה" />
+      <div id="productChecklist">
+        <label>בחר את הסחורות שאתה מציע:</label>
+      </div>
+      <button onclick="register()">הרשם</button>
+    </div>
+
+    <!-- Feedback area -->
+    <pre id="result"></pre>
+
+    <!-- Orders display section -->
+    <div id="ordersSection" style="display:none;">
+      <h2>הזמנות ממתינות</h2>
+      <div id="ordersList"></div>
+    </div>
+  </div>
+
+  <script>
+    // Predefined list of available products for supplier selection
+    const allProducts = [
+      { name: "חלב 3%", price: 5.9, minOrderQty: 10 },
+      { name: "לחם פרוס", price: 6.5, minOrderQty: 20 },
+      { name: "שמנת מתוקה", price: 4.8, minOrderQty: 15 },
+      { name: "גבינה לבנה", price: 5, minOrderQty: 10 },
+      { name: "שוקו", price: 3.5, minOrderQty: 25 },
+      { name: "ביצים", price: 30, minOrderQty: 10 },
+      { name: "מים 1 ליטר", price: 4, minOrderQty: 30 },
+      { name: "קורנפלקס", price: 12.5, minOrderQty: 18 },
+      { name: "טישו", price: 10, minOrderQty: 10 },
+      { name: "ארטיק אבטיח", price: 7.9, minOrderQty: 25 }
+    ];
+
+    /**
+     * Show a specific tab (login or register).
+     * Hides other tabs and resets feedback/result area.
+     */
+    function showTab(tab) {
+      document.getElementById("loginTab").style.display = tab === "login" ? "block" : "none";
+      document.getElementById("registerTab").style.display = tab === "register" ? "block" : "none";
+      document.getElementById("tabLogin").classList.toggle("active", tab === "login");
+      document.getElementById("tabRegister").classList.toggle("active", tab === "register");
+      document.getElementById("ordersSection").style.display = "none";
+      document.getElementById("result").innerText = "";
+    }
+
+    /**
+     * Handle supplier login and load orders after successful authentication.
+     */
+    async function login() {
+      const phone = document.getElementById("loginPhone").value;
+      const password = document.getElementById("loginPassword").value;
+
+      const res = await fetch("http://localhost:3000/api/suppliers/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone, password }),
+      });
+
+      const data = await res.json();
+      if (data._id) {
+        document.getElementById("result").innerText = `שלום ${data.representative}, ${data.companyName}`;
+        loadOrders(data._id);
+      } else {
+        document.getElementById("result").innerText = "שגיאה בפרטי התחברות";
+      }
+    }
+
+    /**
+     * Register a new supplier based on form input and selected products.
+     */
+    async function register() {
+      const checked = Array.from(document.querySelectorAll('#productChecklist input:checked'))
+        .map(cb => cb.value);
+
+      const selectedProducts = allProducts.filter(p => checked.includes(p.name));
+
+      const body = {
+        companyName: document.getElementById("companyName").value,
+        representative: document.getElementById("representative").value,
+        phone: document.getElementById("registerPhone").value,
+        password: document.getElementById("registerPassword").value,
+        products: selectedProducts
+      };
+
+      const res = await fetch("http://localhost:3000/api/suppliers/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      const data = await res.text();
+      document.getElementById("result").innerHTML = `
+        ✅ <strong>${body.companyName}</strong> נרשמה בהצלחה! 
+        <br/><br/>
+        <button onclick="showTab('login')">התחבר עכשיו</button>
+      `;
+    }
+
+    /**
+     * Render product checklist dynamically for the registration form.
+     */
+    function renderProductChecklist() {
+      const container = document.getElementById("productChecklist");
+      allProducts.forEach(product => {
+        const label = document.createElement("label");
+        label.innerHTML = `
+          <input type="checkbox" value="${product.name}"> ${product.name}
+        `;
+        container.appendChild(label);
+      });
+    }
+
+    renderProductChecklist();
+
+    /**
+     * Fetch and render all pending orders for the logged-in supplier.
+     * @param {string} supplierId - The ID of the logged-in supplier
+     */
+    async function loadOrders(supplierId) {
+      const res = await fetch(`http://localhost:3000/api/suppliers/orders/${supplierId}`);
+      const orders = await res.json();
+
+      const ordersList = document.getElementById("ordersList");
+      ordersList.innerHTML = "";
+
+      if (orders.length === 0) {
+        ordersList.innerText = "אין הזמנות כרגע.";
+      } else {
+        orders.forEach(order => {
+          const div = document.createElement("div");
+          div.className = "orderBox";
+          div.innerHTML = `
+            <strong>מס' הזמנה:</strong> ${order._id}<br/>
+            <strong>סטטוס:</strong> ${order.status}<br/>
+            <strong>מוצרים:</strong> ${order.products.map(p => `${p.name} (${p.quantity})`).join(", ")}<br/>
+            ${order.status === "ממתינה לאישור"
+              ? `<button onclick="approveOrder('${order._id}')">אשר הזמנה</button>`
+              : ""}
+            <hr/>
+          `;
+          ordersList.appendChild(div);
+        });
+      }
+
+      document.getElementById("ordersSection").style.display = "block";
+    }
+
+    /**
+     * Approve a specific order by sending a POST request to the server.
+     * @param {string} orderId - The ID of the order to approve
+     */
+    async function approveOrder(orderId) {
+      await fetch(`http://localhost:3000/api/suppliers/orders/${orderId}/approve`, {
+        method: "POST",
+      });
+
+      alert("הזמנה אושרה!");
+      location.reload();
+    }
+
+  </script>
+</body>
+</html>

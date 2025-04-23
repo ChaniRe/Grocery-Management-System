@@ -1,0 +1,159 @@
+<!-- 
+ store.html – Grocery Store Management Interface
+
+This HTML page serves as the management dashboard for the grocery store owner.
+It allows the store owner to:
+- Select a supplier
+- Place new orders by choosing product quantities
+- View all existing orders
+- Mark orders as completed
+
+Language: Hebrew (RTL layout)
+-->
+
+<!DOCTYPE html>
+<html lang="he">
+<head>
+  <meta charset="UTF-8" />
+  <title>ניהול מכולת</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>ניהול הזמנות - בעל מכולת</h1>
+
+    <!-- Order Creation Section -->
+    <h2>ביצוע הזמנה</h2>
+    <label>בחר ספק:</label>
+    <select id="supplierSelect"></select>
+
+    <!-- List of products based on selected supplier -->
+    <div id="productsList"></div>
+
+    <button onclick="createOrder()">בצע הזמנה</button>
+
+    <!-- Orders Display Section -->
+    <h2>הזמנות קיימות</h2>
+    <div id="ordersSection"></div>
+  </div>
+
+  <script>
+    // Store the currently selected supplier ID
+    let selectedSupplierId = "";
+
+    /**
+     * Load all available suppliers from the backend and populate the supplier dropdown.
+     * When a supplier is selected, their available products are displayed.
+     */
+    async function loadSuppliers() {
+      const res = await fetch("http://localhost:3000/api/suppliers/all");
+      const suppliers = await res.json();
+      const select = document.getElementById("supplierSelect");
+
+      suppliers.forEach(supplier => {
+        const option = document.createElement("option");
+        option.value = supplier._id;
+        option.textContent = supplier.companyName + " (" + supplier.representative + ")";
+        select.appendChild(option);
+      });
+
+      // Update selected supplier and show their products when changed
+      select.addEventListener("change", () => {
+        selectedSupplierId = select.value;
+        const selected = suppliers.find(s => s._id === selectedSupplierId);
+        showProducts(selected.products);
+      });
+
+      // Automatically select the first supplier by default
+      if (suppliers.length > 0) {
+        select.value = suppliers[0]._id;
+        selectedSupplierId = suppliers[0]._id;
+        showProducts(suppliers[0].products);
+      }
+    }
+
+    /**
+     * Display the product list for the selected supplier.
+     * Each product includes a numeric input for quantity.
+     */
+    function showProducts(products) {
+      const container = document.getElementById("productsList");
+      container.innerHTML = "";
+      products.forEach(p => {
+        container.innerHTML += `
+          <div>
+            ${p.name} (₪${p.price}) - כמות:
+            <input type="number" id="qty-${p.name}" min="0" value="0" />
+          </div>
+        `;
+      });
+    }
+
+    /**
+     * Collect selected quantities and send an order to the backend.
+     * Only products with quantity > 0 will be included.
+     */
+    async function createOrder() {
+      const inputs = document.querySelectorAll("#productsList input");
+      const products = [];
+      inputs.forEach(input => {
+        const qty = Number(input.value);
+        if (qty > 0) {
+          products.push({
+            name: input.id.replace("qty-", ""),
+            quantity: qty
+          });
+        }
+      });
+
+      const res = await fetch("http://localhost:3000/api/store/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ supplierId: selectedSupplierId, products })
+      });
+
+      alert("הזמנה נשלחה!");
+      loadOrders();
+    }
+
+    /**
+     * Load and display all existing orders from the backend.
+     * Allows marking in-process orders as completed.
+     */
+    async function loadOrders() {
+      const res = await fetch("http://localhost:3000/api/store/orders");
+      const orders = await res.json();
+      const container = document.getElementById("ordersSection");
+      container.innerHTML = "";
+
+      orders.forEach(order => {
+        container.innerHTML += `
+          <div class="orderBox">
+            <strong>סטטוס:</strong> ${order.status}<br/>
+            <strong>מוצרים:</strong> ${order.products.map(p => `${p.name} (${p.quantity})`).join(", ")}<br/>
+            ${order.status === "בתהליך" 
+              ? `<button onclick="completeOrder('${order._id}')">סמן כהושלמה</button>` 
+              : ""}
+            <hr/>
+          </div>
+        `;
+      });
+    }
+
+    /**
+     * Mark an order as completed via backend API and reload the orders.
+     */
+    async function completeOrder(orderId) {
+      await fetch(`http://localhost:3000/api/store/orders/${orderId}/complete`, {
+        method: "POST"
+      });
+      alert("סומנה כהושלמה");
+      loadOrders();
+    }
+
+    // Initial loading of suppliers and orders on page load
+    loadSuppliers();
+    loadOrders();
+  </script>
+</body>
+</html>
