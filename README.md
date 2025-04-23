@@ -22,7 +22,7 @@ Email: chanirefson@gmail.com
 ## 🛠️ Technologies Used
 - **Backend:** Node.js, Express.js
 - **Database:** MongoDB + Mongoose
-- **Frontend:** HTML, Vanilla JS, CSS (RTL / Hebrew layout)
+- **Frontend:** HTML, JS, CSS (RTL / Hebrew layout)
 - **Architecture:** REST API, Modular code structure
 
 ## 📂 Folder Structure
